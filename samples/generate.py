@@ -226,7 +226,7 @@ def main() -> None:
         render_pdf(inv, pdf_path, fonts)
         render_variants(pdf_path, stem, rng)
         stem.with_suffix(".json").write_text(json.dumps(inv, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"{args.count} fatura x 4 kalite -> {args.out}")
+    print(f"{args.count} invoices x 4 quality levels -> {args.out}")
 
 
 if __name__ == "__main__":
