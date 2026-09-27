@@ -8,10 +8,13 @@ learn the existence of another user's document (it is a plain 404).
 from __future__ import annotations
 
 import hashlib
+import re
 import secrets
+import shutil
 import sqlite3
 from contextlib import asynccontextmanager
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
@@ -224,6 +227,7 @@ def create_app(cfg: Settings | None = None, start_worker: bool | None = None) ->
         doc = _owned_doc(conn, user, doc_id)
         conn.execute("DELETE FROM documents WHERE id = ?", (doc_id,))
         Path(doc["storage_path"]).unlink(missing_ok=True)
+        shutil.rmtree(cfg.data_dir / "pages" / doc_id, ignore_errors=True)
         return Response(status_code=204)
 
     @app.post("/api/documents/{doc_id}/retry")
@@ -298,7 +302,7 @@ def create_app(cfg: Settings | None = None, start_worker: bool | None = None) ->
         return Response(
             export.to_csv(conn, doc_id, sep),
             media_type="text/csv; charset=utf-8",
-            headers={"Content-Disposition": f'attachment; filename="{Path(doc["filename"]).stem}.csv"'},
+            headers=_attachment(f"{Path(doc['filename']).stem}.csv"),
         )
 
     @app.get("/api/documents/{doc_id}/export.xlsx")
@@ -307,7 +311,7 @@ def create_app(cfg: Settings | None = None, start_worker: bool | None = None) ->
         return Response(
             export.to_xlsx(conn, doc_id),
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            headers={"Content-Disposition": f'attachment; filename="{Path(doc["filename"]).stem}.xlsx"'},
+            headers=_attachment(f"{Path(doc['filename']).stem}.xlsx"),
         )
 
     # ----------------------------------------------------------------- stats
@@ -318,6 +322,16 @@ def create_app(cfg: Settings | None = None, start_worker: bool | None = None) ->
 
     app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
     return app
+
+
+def _attachment(filename: str) -> dict:
+    """Content-Disposition that survives non-ASCII names ('şubat faturası.xlsx').
+
+    HTTP headers are latin-1, so the plain ``filename`` gets an ASCII fallback and
+    the real name goes into RFC 5987 ``filename*``.
+    """
+    fallback = re.sub(r'[^\x20-\x7e]|["\\]', "_", filename).strip() or "docflow"
+    return {"Content-Disposition": f"attachment; filename=\"{fallback}\"; filename*=UTF-8''{quote(filename)}"}
 
 
 def _doc_summary(conn: sqlite3.Connection, doc: sqlite3.Row) -> dict:

@@ -116,6 +116,11 @@ def delete_row(conn: sqlite3.Connection, user_id: str, doc_id: str, row_index: i
 
 
 def approve(conn: sqlite3.Connection, doc_id: str) -> None:
+    status = conn.execute("SELECT status FROM documents WHERE id = ?", (doc_id,)).fetchone()["status"]
+    if status == "processing":
+        raise ReviewError("Belge henüz işleniyor")
+    if status == "failed":
+        raise ReviewError("İşlenemeyen belge onaylanamaz")
     pending = conn.execute(
         "SELECT COUNT(*) FROM fields WHERE document_id = ? AND deleted = 0 AND status = 'needs_review'", (doc_id,)
     ).fetchone()[0]

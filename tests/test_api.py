@@ -145,3 +145,41 @@ def test_export_csv_and_xlsx(client, conn, cfg, samples):
     wb = load_workbook(io.BytesIO(client.get(f"/api/documents/{doc_id}/export.xlsx", headers=headers).content))
     assert wb.sheetnames == ["Belge", "Kalemler", "Düzeltmeler"]
     assert wb["Kalemler"].max_row == len(inv["lines"]) + 1
+
+
+def test_turkish_file_names_download_correctly(client, conn, cfg, samples):
+    headers = register(client)
+    _, stem = samples[0]
+    with stem.with_suffix(".digital.pdf").open("rb") as fh:
+        doc_id = client.post("/api/documents", files={"file": ("şubat faturası.pdf", fh)},
+                             headers=headers).json()["document"]["id"]
+    drain(conn, cfg)
+    for ext in ("csv", "xlsx"):
+        r = client.get(f"/api/documents/{doc_id}/export.{ext}", headers=headers)
+        assert r.status_code == 200
+        disposition = r.headers["content-disposition"]
+        assert f"filename*=UTF-8''%C5%9Fubat%20faturas%C4%B1.{ext}" in disposition
+        assert disposition.isascii()
+
+
+def test_document_cannot_be_approved_before_processing(client, conn, cfg, samples):
+    headers = register(client)
+    _, stem = samples[0]
+    doc_id = upload(client, headers, stem.with_suffix(".digital.pdf")).json()["document"]["id"]
+    r = client.post(f"/api/documents/{doc_id}/approve", headers=headers)
+    assert r.status_code == 409 and "işleniyor" in r.json()["detail"]
+    drain(conn, cfg)
+    assert client.post(f"/api/documents/{doc_id}/approve", headers=headers).json()["status"] == "approved"
+
+
+def test_delete_removes_document_and_files(client, conn, cfg, samples):
+    headers = register(client)
+    _, stem = samples[0]
+    doc_id = upload(client, headers, stem.with_suffix(".digital.pdf")).json()["document"]["id"]
+    drain(conn, cfg)
+    assert (cfg.data_dir / "pages" / doc_id).exists()
+    assert client.delete(f"/api/documents/{doc_id}", headers=headers).status_code == 204
+    assert not (cfg.data_dir / "pages" / doc_id).exists()
+    assert client.get(f"/api/documents/{doc_id}", headers=headers).status_code == 404
+    # Deleting frees the hash: the same file can be uploaded again as a new document.
+    assert upload(client, headers, stem.with_suffix(".digital.pdf")).status_code == 201
