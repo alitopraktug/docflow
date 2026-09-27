@@ -102,3 +102,19 @@ def test_repeated_failures_mark_job_failed_and_retry_resumes(client, conn, cfg, 
     assert job["stage"] == "extract"  # earlier stages are not repeated
     process_one(conn, "w", cfg)
     assert client.get(f"/api/documents/{doc_id}", headers=headers).json()["status"] == "ready"
+
+
+def test_worker_that_lost_its_lease_writes_nothing(client, conn, cfg, samples):
+    """A worker that stalled past its lease must not overwrite the new owner's work."""
+    headers = register(client)
+    _, stem = samples[0]
+    doc_id = upload(client, headers, stem.with_suffix(".digital.pdf")).json()["document"]["id"]
+
+    def taken_over(stage, page):
+        if stage == "extract":
+            conn.execute("UPDATE jobs SET lease_owner = 'worker-B' WHERE document_id = ?", (doc_id,))
+
+    assert process_one(conn, "worker-A", cfg, fault=taken_over)
+    assert conn.execute("SELECT COUNT(*) FROM fields WHERE document_id = ?", (doc_id,)).fetchone()[0] == 0
+    job = conn.execute("SELECT status, lease_owner FROM jobs WHERE document_id = ?", (doc_id,)).fetchone()
+    assert job["status"] == "running" and job["lease_owner"] == "worker-B"

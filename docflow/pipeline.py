@@ -56,11 +56,11 @@ def run_job(
             return
         started = time.perf_counter()
         if stage == "rasterize":
-            _stage_rasterize(conn, job, doc, settings, fault)
+            _stage_rasterize(conn, job, doc, settings, fault, worker_id)
         elif stage == "ocr":
             _stage_ocr(conn, job, doc, settings, heartbeat, fault, worker_id)
         elif stage == "extract":
-            _stage_extract(conn, job, doc, settings, fault)
+            _stage_extract(conn, job, doc, settings, fault, worker_id)
         else:  # pragma: no cover - corrupt row
             raise ValueError(f"unknown stage {stage!r}")
         _record_metric(conn, job_id, stage, (time.perf_counter() - started) * 1000)
@@ -73,6 +73,14 @@ def run_job(
             )
             return  # the extract stage finished the job and released the lease
         heartbeat()
+
+
+def _assert_owner(conn: sqlite3.Connection, job_id: str, worker_id: str) -> None:
+    """Called inside each stage's write transaction: a worker whose lease was taken
+    over (it stalled past the lease) must not write anything."""
+    owner = conn.execute("SELECT lease_owner FROM jobs WHERE id = ?", (job_id,)).fetchone()[0]
+    if owner != worker_id:
+        raise LeaseLost(job_id)
 
 
 def _advance(conn: sqlite3.Connection, job_id: str, next_stage: str, progress: float, message: str) -> None:
@@ -94,12 +102,13 @@ def _record_metric(conn: sqlite3.Connection, job_id: str, stage: str, ms: float)
 # --------------------------------------------------------------------------
 
 
-def _stage_rasterize(conn, job, doc, settings: Settings, fault: FaultInjector) -> None:
+def _stage_rasterize(conn, job, doc, settings: Settings, fault: FaultInjector, worker_id: str) -> None:
     out_dir = settings.data_dir / "pages" / doc["id"]
     pages = rasterize(Path(doc["storage_path"]), doc["content_type"], out_dir, settings.render_dpi)
     fault("rasterize", None)
     source_kind = "pdf_text" if pages and all(p.text_words for p in pages) else "ocr"
     with db.transaction(conn):
+        _assert_owner(conn, job["id"], worker_id)
         conn.execute("DELETE FROM pages WHERE document_id = ?", (doc["id"],))
         for p in pages:
             conn.execute(
@@ -138,9 +147,7 @@ def _stage_ocr(conn, job, doc, settings: Settings, heartbeat: Heartbeat, fault: 
             "SELECT COUNT(*) FROM pages WHERE document_id = ? AND ocr_words IS NOT NULL", (doc["id"],)
         ).fetchone()[0] + 1
         with db.transaction(conn):
-            owner = conn.execute("SELECT lease_owner FROM jobs WHERE id = ?", (job["id"],)).fetchone()[0]
-            if owner != worker_id:
-                raise LeaseLost(job["id"])
+            _assert_owner(conn, job["id"], worker_id)
             conn.execute(
                 "UPDATE pages SET ocr_words = ?, ocr_engine = ?, ocr_ms = ? WHERE document_id = ? AND page_no = ?",
                 (json.dumps(words), f"tesseract:{lang}", ms, doc["id"], page["page_no"]),
@@ -151,10 +158,11 @@ def _stage_ocr(conn, job, doc, settings: Settings, heartbeat: Heartbeat, fault: 
             )
         heartbeat()
     with db.transaction(conn):
+        _assert_owner(conn, job["id"], worker_id)
         _advance(conn, job["id"], "extract", 0.9, "Metin tanındı, alanlar çıkarılıyor")
 
 
-def _stage_extract(conn, job, doc, settings: Settings, fault: FaultInjector) -> None:
+def _stage_extract(conn, job, doc, settings: Settings, fault: FaultInjector, worker_id: str) -> None:
     words: list[dict] = []
     for row in conn.execute(
         "SELECT ocr_words FROM pages WHERE document_id = ? ORDER BY page_no", (doc["id"],)
@@ -170,6 +178,7 @@ def _stage_extract(conn, job, doc, settings: Settings, fault: FaultInjector) -> 
     duplicate_of = _find_content_duplicate(conn, doc, header)
     ts = db.now()
     with db.transaction(conn):
+        _assert_owner(conn, job["id"], worker_id)
         # Re-running extract is idempotent: replace machine output wholesale.
         conn.execute("DELETE FROM fields WHERE document_id = ?", (doc["id"],))
         for f in fields:

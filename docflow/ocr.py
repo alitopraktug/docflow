@@ -8,6 +8,7 @@ guessing); scans and photos go through Tesseract.
 
 from __future__ import annotations
 
+import os
 import statistics
 from dataclasses import dataclass
 from pathlib import Path
@@ -16,6 +17,11 @@ import pymupdf as fitz
 import numpy as np
 import pytesseract
 from PIL import Image, ImageFilter, ImageOps
+
+# Tesseract's OpenMP threads busy-wait. With several OCR processes on one machine
+# (multiple workers, or a worker next to the API) they starve each other and a
+# 3-second page can take minutes. One thread per process scales across workers instead.
+os.environ.setdefault("OMP_THREAD_LIMIT", "1")
 
 PDF_TEXT_CONFIDENCE = 99.0
 MIN_TEXT_LAYER_CHARS = 40
