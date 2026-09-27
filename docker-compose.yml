@@ -1,0 +1,17 @@
+# API and workers as separate processes sharing one data volume.
+# Kill a worker mid-job (docker compose kill worker) and another one resumes it.
+services:
+  api:
+    build: .
+    ports: ["8000:8000"]
+    environment:
+      DOCFLOW_EMBEDDED_WORKER: "0"
+    volumes: [docflow-data:/data]
+  worker:
+    build: .
+    command: ["python", "-m", "docflow.worker"]
+    deploy:
+      replicas: 2
+    volumes: [docflow-data:/data]
+volumes:
+  docflow-data:

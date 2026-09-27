@@ -1,0 +1,55 @@
+{
+  "id": "inv001",
+  "header": {
+    "supplier_name": "Ege Ofis Malzemeleri",
+    "supplier_tax_id": "1043321815",
+    "invoice_number": "ABC2026453778756",
+    "invoice_date": "2026-06-01",
+    "due_date": "2026-07-16",
+    "po_number": null,
+    "currency": "TRY",
+    "subtotal": "124760.08",
+    "tax_rate": "20",
+    "tax_amount": "24952.02",
+    "total": "149712.10"
+  },
+  "buyer": "Deniz Danışmanlık",
+  "lines": [
+    {
+      "description": "A4 Fotokopi Kağıdı 80gr",
+      "quantity": "20",
+      "unit_price": "94.34",
+      "amount": "1886.80"
+    },
+    {
+      "description": "Etiket Yazıcı",
+      "quantity": "12",
+      "unit_price": "2542.48",
+      "amount": "30509.76"
+    },
+    {
+      "description": "Toner Kartuşu 85A",
+      "quantity": "50",
+      "unit_price": "1301.81",
+      "amount": "65090.50"
+    },
+    {
+      "description": "USB-C Kablo 2m",
+      "quantity": "50",
+      "unit_price": "238.56",
+      "amount": "11928.00"
+    },
+    {
+      "description": "Harici Disk 2TB",
+      "quantity": "6",
+      "unit_price": "2477.87",
+      "amount": "14867.22"
+    },
+    {
+      "description": "Dosya Klasörü Geniş",
+      "quantity": "10",
+      "unit_price": "47.78",
+      "amount": "477.80"
+    }
+  ]
+}

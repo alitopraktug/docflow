@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DocFlow</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%226%22 fill=%22%232f5bea%22/%3E%3Cpath d=%22M9 8h9l5 5v11H9z%22 fill=%22white%22/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#/">Doc<span>Flow</span></a>
+    <div id="stats" class="stats"></div>
+    <div class="user" id="user"></div>
+  </header>
+
+  <main id="app"></main>
+
+  <template id="tpl-login">
+    <section class="login card">
+      <h1>DocFlow</h1>
+      <p class="muted">Faturaları ve satın alma siparişlerini yükleyin, çıkarılan alanları kaynağıyla birlikte kontrol edin, Excel/CSV olarak indirin.</p>
+      <form id="login-form">
+        <label>Adınız <input name="name" required maxlength="60" autocomplete="name" placeholder="ör. Ali"></label>
+        <button class="primary" type="submit">Başla</button>
+      </form>
+      <p class="muted small">Her kullanıcı yalnızca kendi belgelerini görür. Oturum anahtarı bu tarayıcıda saklanır.</p>
+    </section>
+  </template>
+
+  <template id="tpl-list">
+    <section>
+      <label class="dropzone" id="dropzone">
+        <input type="file" id="file-input" accept=".pdf,image/png,image/jpeg,image/tiff,image/webp" multiple hidden>
+        <strong>PDF veya belge fotoğrafı yükleyin</strong>
+        <span class="muted">Sürükleyip bırakın ya da tıklayın · Satın alma faturası / sipariş</span>
+      </label>
+      <div class="table-wrap">
+        <table class="docs">
+          <thead><tr><th>Belge</th><th>Durum</th><th>Kontrol</th><th>Süre</th><th>Yüklenme</th><th></th></tr></thead>
+          <tbody id="doc-rows"></tbody>
+        </table>
+      </div>
+      <p id="empty" class="muted center" hidden>Henüz belge yok.</p>
+    </section>
+  </template>
+
+  <template id="tpl-detail">
+    <section class="detail">
+      <div class="detail-head">
+        <a href="#/" class="back">← Belgeler</a>
+        <h2 id="doc-title"></h2>
+        <span id="doc-status" class="badge"></span>
+        <div class="spacer"></div>
+        <label class="toggle"><input type="checkbox" id="only-review"> Yalnızca kontrol gerekenler</label>
+        <button id="next-review">Sonraki kontrol →</button>
+        <a class="button" id="dl-csv">CSV</a>
+        <a class="button" id="dl-xlsx">Excel</a>
+        <button class="primary" id="approve">Onayla</button>
+      </div>
+      <div id="banner"></div>
+      <div class="split">
+        <div class="viewer card">
+          <div class="viewer-tools">
+            <button id="zoom-out" aria-label="Uzaklaştır">−</button>
+            <button id="zoom-in" aria-label="Yakınlaştır">+</button>
+            <span class="muted small" id="page-info"></span>
+            <span class="legend"><i class="ok"></i>Otomatik <i class="review"></i>Kontrol <i class="human"></i>Kullanıcı</span>
+          </div>
+          <div class="pages" id="pages"></div>
+        </div>
+        <div class="panel">
+          <div class="card">
+            <h3>Belge alanları</h3>
+            <div id="header-fields" class="fields"></div>
+          </div>
+          <div class="card">
+            <div class="row-head">
+              <h3>Kalemler</h3>
+              <button id="add-row">+ Satır ekle</button>
+            </div>
+            <div class="table-wrap"><table class="lines" id="lines"></table></div>
+          </div>
+          <details class="card">
+            <summary>Düzeltme geçmişi</summary>
+            <div id="history"></div>
+          </details>
+        </div>
+      </div>
+    </section>
+  </template>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script src="/app.js"></script>
+</body>
+</html>
